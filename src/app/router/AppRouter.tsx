@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { AppShell } from '../layouts/AppShell.js';
+import { AthletePage } from '../../features/athletes/AthletePage.js';
 import { CompleteProfilePage } from '../../features/auth/CompleteProfilePage.js';
 import { LoginPage } from '../../features/auth/LoginPage.js';
 import { UnderConstructionPage } from '../../components/feedback/UnderConstructionPage.js';
@@ -27,7 +28,7 @@ export function AppRouter() {
         }
       >
         <Route index element={<Navigate to="atleta" replace />} />
-        <Route path="atleta" element={<UnderConstructionPage label="Meu perfil" />} />
+        <Route path="atleta" element={<AthletePage />} />
         <Route
           path="dm"
           element={

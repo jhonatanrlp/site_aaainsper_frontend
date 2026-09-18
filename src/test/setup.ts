@@ -1,4 +1,12 @@
 import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach } from 'vitest';
+
+// Vitest runs with globals: false, so Testing Library can't auto-register
+// its own cleanup — without this, DOM from one test leaks into the next.
+afterEach(() => {
+  cleanup();
+});
 
 // Safe dummy values so importing lib/env.ts never throws during tests —
 // no test should depend on a real backend or Supabase project.

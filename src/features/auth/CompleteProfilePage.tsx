@@ -3,8 +3,10 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { FormField, Input } from '../../components/forms/controls.js';
 import { Button } from '../../components/ui/button.js';
-import { api } from '../../lib/api/client.js';
+import { ApiError } from '../../lib/api/unwrap.js';
+import { useUpdateProfile } from '../users/hooks.js';
 import { useAuth } from './AuthContext.js';
 
 const completeProfileSchema = z.object({
@@ -12,45 +14,43 @@ const completeProfileSchema = z.object({
   cpf: z
     .string()
     .trim()
-    .transform((v) => v.replace(/\D/g, ''))
-    .pipe(z.string().regex(/^\d{11}$/, 'CPF deve ter 11 dígitos')),
+    .refine((value) => value.replace(/\D/g, '').length === 11, 'CPF deve ter 11 dígitos'),
   rg: z.string().trim().min(1, 'Informe seu RG'),
   birthDate: z.string().min(1, 'Informe sua data de nascimento'),
-  course: z.string().trim().optional(),
-  instagram: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
+  course: z.string().trim(),
+  instagram: z.string().trim(),
+  phone: z.string().trim(),
 });
 
 type FormValues = z.infer<typeof completeProfileSchema>;
 
-const fields: { name: keyof FormValues; label: string; type?: string; required?: boolean }[] = [
-  { name: 'fullName', label: 'Nome completo', required: true },
-  { name: 'cpf', label: 'CPF', required: true },
-  { name: 'rg', label: 'RG', required: true },
-  { name: 'birthDate', label: 'Data de nascimento', type: 'date', required: true },
-  { name: 'course', label: 'Curso' },
-  { name: 'instagram', label: 'Instagram' },
-  { name: 'phone', label: 'Telefone' },
-];
-
 export function CompleteProfilePage() {
   const navigate = useNavigate();
   const { refreshProfile } = useAuth();
+  const updateProfile = useUpdateProfile();
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(completeProfileSchema) });
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(completeProfileSchema),
+    defaultValues: { course: '', instagram: '', phone: '' },
+  });
 
   async function onSubmit(values: FormValues) {
-    const { error } = await api.PATCH('/users/me', { body: values });
-    if (error) {
-      toast.error('Não foi possível salvar seu perfil.');
-      return;
+    try {
+      await updateProfile.mutateAsync({
+        ...values,
+        cpf: values.cpf.replace(/\D/g, ''),
+      });
+      await refreshProfile();
+      toast.success('Perfil completo!');
+      navigate('/sistema/atleta', { replace: true });
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : 'Não foi possível salvar seu perfil.',
+      );
     }
-    await refreshProfile();
-    toast.success('Perfil completo!');
-    navigate('/sistema/atleta', { replace: true });
   }
 
   return (
@@ -63,34 +63,43 @@ export function CompleteProfilePage() {
           </p>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <FormField
+            label="Nome completo"
+            htmlFor="fullName"
+            required
+            error={errors.fullName?.message}
+          >
+            <Input id="fullName" autoComplete="name" {...register('fullName')} />
+          </FormField>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {fields.map((field) => (
-              <div
-                key={field.name}
-                className={field.name === 'fullName' ? 'sm:col-span-2 space-y-1.5' : 'space-y-1.5'}
-              >
-                <label htmlFor={field.name} className="text-sm font-medium text-[var(--color-ink)]">
-                  {field.label}
-                  {field.required && <span className="text-[var(--color-danger-600)]"> *</span>}
-                </label>
-                <input
-                  id={field.name}
-                  type={field.type ?? 'text'}
-                  {...register(field.name)}
-                  className="w-full rounded-lg border border-[var(--color-border)] px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-[var(--color-brand-600)] focus:ring-1 focus:ring-[var(--color-brand-600)]"
-                />
-                {errors[field.name] && (
-                  <p className="text-xs text-[var(--color-danger-600)]">
-                    {errors[field.name]?.message}
-                  </p>
-                )}
-              </div>
-            ))}
+            <FormField label="CPF" htmlFor="cpf" required error={errors.cpf?.message}>
+              <Input id="cpf" inputMode="numeric" {...register('cpf')} />
+            </FormField>
+            <FormField label="RG" htmlFor="rg" required error={errors.rg?.message}>
+              <Input id="rg" {...register('rg')} />
+            </FormField>
+            <FormField
+              label="Data de nascimento"
+              htmlFor="birthDate"
+              required
+              error={errors.birthDate?.message}
+            >
+              <Input id="birthDate" type="date" {...register('birthDate')} />
+            </FormField>
+            <FormField label="Curso" htmlFor="course" error={errors.course?.message}>
+              <Input id="course" {...register('course')} />
+            </FormField>
+            <FormField label="Instagram" htmlFor="instagram" error={errors.instagram?.message}>
+              <Input id="instagram" {...register('instagram')} />
+            </FormField>
+            <FormField label="Telefone" htmlFor="phone" error={errors.phone?.message}>
+              <Input id="phone" type="tel" autoComplete="tel" {...register('phone')} />
+            </FormField>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Salvando…' : 'Continuar'}
+          <Button type="submit" className="w-full" disabled={updateProfile.isPending}>
+            {updateProfile.isPending ? 'Salvando…' : 'Continuar'}
           </Button>
         </form>
       </div>

@@ -20,10 +20,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await bootstrapSession();
       setState({ status: 'authenticated', profile });
     } catch {
-      setState({
-        status: 'error',
-        message: 'Não foi possível carregar seu perfil. Tente novamente.',
-      });
+      // A failed *refresh* (e.g. right after editing the profile) must not
+      // tear down a session that is already up — only a failed first load
+      // becomes a full-page error.
+      setState((previous) =>
+        previous.status === 'authenticated'
+          ? previous
+          : {
+              status: 'error',
+              message: 'Não foi possível carregar seu perfil. Tente novamente.',
+            },
+      );
     }
   }, []);
 
